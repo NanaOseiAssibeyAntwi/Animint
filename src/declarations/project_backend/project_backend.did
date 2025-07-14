@@ -1,0 +1,102 @@
+type User = 
+ record {
+   balance: nat;
+   isVerified: bool;
+   "principal": principal;
+   registeredAt: int;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: nat;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: AnimalId;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok;
+ };
+type MicrochipId = text;
+type Litter = 
+ record {
+   birthDate: int;
+   breeder: principal;
+   dam: AnimalId;
+   id: text;
+   offspring: vec AnimalId;
+   sire: AnimalId;
+ };
+type DNAHash = text;
+type BreederStats = 
+ record {
+   breeder: principal;
+   reputationScore: nat;
+   totalAnimals: nat;
+   verifiedAnimals: nat;
+ };
+type BreedNFT = 
+ record {
+   breed: text;
+   id: nat;
+   imageUrl: text;
+   owner: principal;
+ };
+type AnimalId = text;
+type Animal = 
+ record {
+   birthDate: int;
+   breed: text;
+   breeder: principal;
+   dam: opt AnimalId;
+   dnaHash: opt DNAHash;
+   id: AnimalId;
+   isVerified: bool;
+   microchipId: MicrochipId;
+   name: text;
+   owner: principal;
+   sire: opt AnimalId;
+   species: text;
+ };
+service : {
+  getAllAnimals: () -> (vec Animal) query;
+  getAllBreedNFTs: () -> (vec BreedNFT) query;
+  getAllUsers: () -> (vec User) query;
+  getAnimal: (animalId: AnimalId) -> (opt Animal) query;
+  getAnimalsByBreeder: (breeder: principal) -> (vec Animal) query;
+  getAnimalsByOwner: (owner: principal) -> (vec Animal) query;
+  getBalance: ("principal": principal) -> (nat) query;
+  getBreedNFTsByOwner: (owner: principal) -> (vec BreedNFT) query;
+  getBreederStats: (breeder: principal) -> (opt BreederStats) query;
+  getLineage: (animalId: AnimalId) -> (vec Animal) query;
+  getLitter: (litterId: text) -> (opt Litter) query;
+  getStats: () ->
+   (record {
+      totalAnimals: nat;
+      totalBreeders: nat;
+      totalLitters: nat;
+      verifiedAnimals: nat;
+    }) query;
+  getUser: ("principal": principal) -> (opt User) query;
+  isUserRegistered: ("principal": principal) -> (bool) query;
+  isUserVerified: ("principal": principal) -> (bool) query;
+  mintBreedNFT: (breed: text) -> (Result_3);
+  registerAnimal: (microchipId: MicrochipId, species: text, breed: text,
+   name: text, sire: opt AnimalId, dam: opt AnimalId, dnaHash:
+   opt DNAHash) -> (Result_2);
+  registerLitter: (sire: AnimalId, dam: AnimalId, offspring: vec AnimalId) ->
+   (Result_1);
+  registerUser: () -> (Result);
+  transferOwnership: (animalId: AnimalId, newOwner: principal) -> (Result);
+  verifyAnimal: (animalId: AnimalId) -> (Result);
+  verifyMicrochip: (microchipId: MicrochipId) -> (opt AnimalId) query;
+  verifyUser: () -> (Result);
+}
