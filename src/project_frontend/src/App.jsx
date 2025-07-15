@@ -31,6 +31,8 @@ function App() {
   const [registering, setRegistering] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  const [balance, setBalance] = useState(10000);
+  const [user, setUser] = useState(null);
 
   // Load animals and stats on mount
   useEffect(() => {
@@ -40,13 +42,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && principal) {
       loadAnimals();
       loadStats();
       loadNFTs();
       checkUserRegistered();
+      loadUserBalance();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, principal]);
 
   const initAuth = async () => {
     const client = await AuthClient.create();
@@ -76,6 +79,9 @@ function App() {
     setIsAuthenticated(false);
     setPrincipal("");
     setMyNFTs([]);
+    setUser(null);
+    setBalance(0);
+    setWalletOpen(false);
   };
 
   const loadAnimals = async () => {
@@ -106,6 +112,18 @@ function App() {
       setMyNFTs(nfts);
     } catch (e) {
       setMyNFTs([]);
+    }
+  };
+
+  const loadUserBalance = async () => {
+    try {
+      if (!principal) return;
+      const userBalance = await project_backend.getBalance(principal);
+      setBalance(Number(userBalance));
+      const userData = await project_backend.getUser(principal);
+      setUser(userData[0] || null);
+    } catch (e) {
+      console.error('Error loading user balance:', e);
     }
   };
 
@@ -151,6 +169,7 @@ function App() {
         alert(`NFT minted for breed: ${mintBreed}`);
         setMintBreed("");
         loadNFTs();
+        loadUserBalance();
       } else {
         alert(result.err);
       }
@@ -187,6 +206,34 @@ function App() {
     }
   };
 
+  const registerAccount = async () => {
+    if (!principal) return;
+    setRegistering(true);
+    try {
+      const result = await project_backend.registerUser();
+      if ('ok' in result) {
+        setIsRegistered(true);
+        loadUserBalance();
+      } else {
+        alert(`Registration failed: ${result.err}`);
+      }
+    } catch (e) {
+      alert('Error registering account');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const checkUserRegistered = async () => {
+    try {
+      if (!principal) return;
+      const registered = await project_backend.isUserRegistered(principal);
+      setIsRegistered(registered);
+    } catch (e) {
+      setIsRegistered(false);
+    }
+  };
+
   // Helper to safely convert Motoko Nat/Int (BigInt) to JS Number
   const safeToNumber = (val) => {
     if (typeof val === 'bigint' || (typeof val === 'object' && val !== null && typeof val.toString === 'function')) {
@@ -212,100 +259,111 @@ function App() {
     }).format(amount);
   };
 
-  const registerAccount = async () => {
-    setRegistering(true);
-    // TODO: Call backend to register user
-    setTimeout(() => {
-      setIsRegistered(true);
-      setRegistering(false);
-    }, 1000);
+  const formatPrincipal = (principal) => {
+    if (!principal) return '';
+    return `${principal.slice(0, 8)}...${principal.slice(-4)}`;
   };
 
-  const checkUserRegistered = async () => {
-    // TODO: Call backend to check if user is registered
-    setIsRegistered(true); // For now, assume true
-  };
-
-  // Enforce II login before app loads (even on landing page)
+  // Enforce II login before app loads
   if (!isAuthenticated) {
     return (
       <div className="ii-login-modal">
         <div className="ii-login-box">
-          <h2 className="ii-login-title">Welcome to Animint</h2>
-          <p className="ii-login-desc">Please log in with your Internet Identity to access Animint.</p>
-          <button onClick={login} className="ii-login-btn">Login with Internet Identity</button>
+          <div className="ii-login-logo">
+            <div className="ii-logo-icon">🐾</div>
+            <h1 className="ii-login-brand">Animint</h1>
+          </div>
+          <h2 className="ii-login-title">Welcome to the Future</h2>
+          <p className="ii-login-desc">
+            Access the world's first decentralized pedigree registry powered by blockchain technology.
+          </p>
+          <button onClick={login} className="ii-login-btn">
+            <span className="ii-btn-icon">🔐</span>
+            Connect with Internet Identity
+          </button>
+          <div className="ii-login-features">
+            <div className="ii-feature">
+              <span className="ii-feature-icon">⚡</span>
+              <span>Instant Access</span>
+            </div>
+            <div className="ii-feature">
+              <span className="ii-feature-icon">🛡️</span>
+              <span>Secure & Private</span>
+            </div>
+            <div className="ii-feature">
+              <span className="ii-feature-icon">🌍</span>
+              <span>Global Registry</span>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="app-container">
       {/* Navigation */}
       <nav className="nav-bar">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-lg font-bold">A</span>
-                </div>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gradient">
-                  Animint
-                </h1>
-                <p className="text-xs text-gray-500 -mt-1">Decentralized Registry</p>
-              </div>
+        <div className="nav-content">
+          <div className="nav-brand">
+            <div className="brand-logo">
+              <div className="logo-icon">🐾</div>
             </div>
-            <div className="flex items-center space-x-6">
-              <button 
-                onClick={() => setActiveTab('overview')}
-                className={`nav-button ${activeTab === 'overview' ? 'nav-button-active' : ''}`}
-              >
-                Overview
-              </button>
-              <button 
-                onClick={() => setActiveTab('platform')}
-                className={`nav-button ${activeTab === 'platform' ? 'nav-button-active' : ''}`}
-              >
-                Live Platform
-              </button>
-              <div className="series-a-badge">
-                Series A Ready
-              </div>
-              {/* MetaMask-style wallet button at top right */}
-              <button 
-                className="wallet-metamask-btn"
-                onClick={() => setWalletOpen(true)}
-                title="Open My Wallet"
-              >
-                <span role="img" aria-label="fox" style={{fontSize:'1.5em',marginRight:'0.4em'}}>🦊</span>
-                My Wallet
-              </button>
+            <div className="brand-text">
+              <h1 className="brand-title">Animint</h1>
+              <p className="brand-subtitle">Decentralized Registry</p>
             </div>
+          </div>
+          
+          <div className="nav-center">
+            <button 
+              onClick={() => setActiveTab('overview')}
+              className={`nav-tab ${activeTab === 'overview' ? 'nav-tab-active' : ''}`}
+            >
+              <span className="nav-tab-icon">📊</span>
+              Overview
+            </button>
+            <button 
+              onClick={() => setActiveTab('platform')}
+              className={`nav-tab ${activeTab === 'platform' ? 'nav-tab-active' : ''}`}
+            >
+              <span className="nav-tab-icon">🚀</span>
+              Live Platform
+            </button>
+          </div>
+
+          <div className="nav-actions">
+            <div className="series-badge">Series A Ready</div>
+            <button 
+              className="wallet-trigger"
+              onClick={() => setWalletOpen(true)}
+            >
+              <span className="wallet-icon">👤</span>
+              <span className="wallet-text">
+                {formatPrincipal(principal)}
+              </span>
+              <span className="wallet-arrow">▼</span>
+            </button>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="main-content">
         {activeTab === 'overview' && (
-          <>
+          <div className="overview-section">
             {/* Hero Section */}
-            <div className="text-center mb-16">
-              <div className="status-badge">
-                <span className="status-indicator"></span>
+            <div className="hero-section">
+              <div className="status-indicator">
+                <div className="status-dot"></div>
                 <span>Live on Internet Computer • {formatCurrency(2800000)} Platform Value</span>
               </div>
               
               <h1 className="hero-title">
                 The Future of
-                <span className="text-gradient block">
-                  Pedigree Verification
-                </span>
+                <span className="hero-gradient">Pedigree Verification</span>
               </h1>
               
-              <p className="hero-subtitle">
+              <p className="hero-description">
                 Revolutionizing the $45B animal breeding industry with blockchain-secured lineage records. 
                 Transparent, immutable, and globally accessible pedigree documentation.
               </p>
@@ -313,29 +371,29 @@ function App() {
               {/* Key Metrics */}
               <div className="metrics-grid">
                 <div className="metric-card">
-                  <div className="metric-value text-blue-600">{(safeToNumber(stats.totalAnimals) + 12847).toLocaleString()}</div>
+                  <div className="metric-value blue">{(safeToNumber(stats.totalAnimals) + 12847).toLocaleString()}</div>
                   <div className="metric-label">Registered Animals</div>
                 </div>
                 <div className="metric-card">
-                  <div className="metric-value text-purple-600">{(safeToNumber(stats.totalBreeders) + 3421).toLocaleString()}</div>
+                  <div className="metric-value purple">{(safeToNumber(stats.totalBreeders) + 3421).toLocaleString()}</div>
                   <div className="metric-label">Active Breeders</div>
                 </div>
                 <div className="metric-card">
-                  <div className="metric-value text-green-600">45,693</div>
+                  <div className="metric-value green">45,693</div>
                   <div className="metric-label">Transactions</div>
                 </div>
                 <div className="metric-card">
-                  <div className="metric-value text-orange-600">300%</div>
+                  <div className="metric-value orange">300%</div>
                   <div className="metric-label">YoY Growth</div>
                 </div>
               </div>
             </div>
 
             {/* Value Propositions */}
-            <div className="value-props-grid">
+            <div className="value-props">
               <div className="value-prop-card">
-                <div className="value-prop-icon bg-blue-100">
-                  <span className="text-2xl">🛡️</span>
+                <div className="value-prop-icon blue-bg">
+                  <span>🛡️</span>
                 </div>
                 <h3 className="value-prop-title">Immutable Records</h3>
                 <p className="value-prop-text">
@@ -344,8 +402,8 @@ function App() {
               </div>
 
               <div className="value-prop-card">
-                <div className="value-prop-icon bg-purple-100">
-                  <span className="text-2xl">🌐</span>
+                <div className="value-prop-icon purple-bg">
+                  <span>🌐</span>
                 </div>
                 <h3 className="value-prop-title">Global Registry</h3>
                 <p className="value-prop-text">
@@ -354,8 +412,8 @@ function App() {
               </div>
 
               <div className="value-prop-card">
-                <div className="value-prop-icon bg-green-100">
-                  <span className="text-2xl">📈</span>
+                <div className="value-prop-icon green-bg">
+                  <span>📈</span>
                 </div>
                 <h3 className="value-prop-title">Market Opportunity</h3>
                 <p className="value-prop-text">
@@ -366,22 +424,22 @@ function App() {
 
             {/* Market Opportunity */}
             <div className="market-section">
-              <div className="max-w-4xl mx-auto text-center">
+              <div className="market-content">
                 <h2 className="market-title">Massive Market Opportunity</h2>
                 <p className="market-subtitle">
                   The global pet industry reaches $45B annually, with premium breeding representing 
                   a $12B subset lacking standardized verification infrastructure.
                 </p>
                 <div className="market-stats">
-                  <div>
+                  <div className="market-stat">
                     <div className="market-stat-value">$45B</div>
                     <div className="market-stat-label">Global Pet Market</div>
                   </div>
-                  <div>
+                  <div className="market-stat">
                     <div className="market-stat-value">$12B</div>
                     <div className="market-stat-label">Premium Breeding</div>
                   </div>
-                  <div>
+                  <div className="market-stat">
                     <div className="market-stat-value">300%</div>
                     <div className="market-stat-label">YoY Growth</div>
                   </div>
@@ -391,7 +449,7 @@ function App() {
 
             {/* Technology Stack */}
             <div className="tech-section">
-              <div className="text-center mb-12">
+              <div className="tech-header">
                 <h2 className="tech-title">Built on Internet Computer</h2>
                 <p className="tech-subtitle">
                   Leveraging cutting-edge blockchain technology for maximum security and scalability
@@ -400,140 +458,150 @@ function App() {
               
               <div className="tech-grid">
                 <div className="tech-item">
-                  <div className="tech-icon bg-blue-100">
-                    <span className="text-2xl">🔒</span>
+                  <div className="tech-icon blue-bg">
+                    <span>🔒</span>
                   </div>
                   <h3 className="tech-item-title">Blockchain Security</h3>
                   <p className="tech-item-text">Immutable records on Internet Computer Protocol</p>
                 </div>
                 
                 <div className="tech-item">
-                  <div className="tech-icon bg-purple-100">
-                    <span className="text-2xl">⚡</span>
+                  <div className="tech-icon purple-bg">
+                    <span>⚡</span>
                   </div>
                   <h3 className="tech-item-title">Lightning Fast</h3>
                   <p className="tech-item-text">Sub-second transaction finality</p>
                 </div>
                 
                 <div className="tech-item">
-                  <div className="tech-icon bg-green-100">
-                    <span className="text-2xl">🚀</span>
+                  <div className="tech-icon green-bg">
+                    <span>🚀</span>
                   </div>
                   <h3 className="tech-item-title">Scalable</h3>
                   <p className="tech-item-text">Unlimited capacity for global adoption</p>
                 </div>
                 
                 <div className="tech-item">
-                  <div className="tech-icon bg-orange-100">
-                    <span className="text-2xl">🌍</span>
+                  <div className="tech-icon orange-bg">
+                    <span>🌍</span>
                   </div>
                   <h3 className="tech-item-title">Decentralized</h3>
                   <p className="tech-item-text">No single point of failure or control</p>
                 </div>
               </div>
             </div>
-          </>
+
+            {/* CTA Section */}
+            <div className="cta-section">
+              <h2 className="cta-title">Ready to Revolutionize Animal Breeding?</h2>
+              <p className="cta-subtitle">
+                Join the future of transparent, secure, and immutable pedigree verification
+              </p>
+              <div className="cta-buttons">
+                <button className="cta-btn primary">
+                  <span>📅</span>
+                  Schedule Demo
+                </button>
+                <button className="cta-btn secondary">
+                  <span>📊</span>
+                  View Pitch Deck
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'platform' && (
-          <>
-            {/* Platform Demo Header */}
-            <div className="text-center mb-12">
+          <div className="platform-section">
+            {/* Platform Header */}
+            <div className="platform-header">
               <h2 className="platform-title">Live Platform Demo</h2>
               <p className="platform-subtitle">
                 Experience our production-ready platform with real blockchain integration
               </p>
-            </div>
-
-            {/* Stats Display */}
-            <div className="platform-stats">
-              <div className="platform-stat-card">
-                <div className="platform-stat-value text-blue-600">{safeToNumber(stats.totalAnimals)}</div>
-                <div className="platform-stat-label">Live Animals</div>
-              </div>
-              <div className="platform-stat-card">
-                <div className="platform-stat-value text-purple-600">{safeToNumber(stats.totalBreeders)}</div>
-                <div className="platform-stat-label">Active Breeders</div>
+              
+              <div className="platform-stats">
+                <div className="platform-stat-card">
+                  <div className="platform-stat-value blue">{safeToNumber(stats.totalAnimals)}</div>
+                  <div className="platform-stat-label">Live Animals</div>
+                </div>
+                <div className="platform-stat-card">
+                  <div className="platform-stat-value purple">{safeToNumber(stats.totalBreeders)}</div>
+                  <div className="platform-stat-label">Active Breeders</div>
+                </div>
               </div>
             </div>
 
             <div className="platform-grid">
               {/* Registration Form */}
-              <div className="form-card">
-                <div className="form-header">
-                  <div className="form-icon">
-                    <span className="text-white text-lg">📝</span>
+              <div className="form-section">
+                <div className="section-header">
+                  <div className="section-icon blue-bg">
+                    <span>📝</span>
                   </div>
-                  <h3 className="form-title">Register New Animal</h3>
+                  <div>
+                    <h3 className="section-title">Register New Animal</h3>
+                    <p className="section-subtitle">Add a new animal to the blockchain registry</p>
+                  </div>
                 </div>
                 
-                <form onSubmit={handleSubmit} className="form-content">
-                  <div>
-                    <label htmlFor="species" className="form-label">
-                      Species *
-                    </label>
-                    <input
-                      type="text"
-                      id="species"
-                      value={formData.species}
-                      onChange={(e) => setFormData({...formData, species: e.target.value})}
-                      required
-                      placeholder="e.g., Dog, Cat, Horse"
-                      className="form-input"
-                    />
+                <form onSubmit={handleSubmit} className="registration-form">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Species *</label>
+                      <input
+                        type="text"
+                        value={formData.species}
+                        onChange={(e) => setFormData({...formData, species: e.target.value})}
+                        required
+                        placeholder="e.g., Dog, Cat, Horse"
+                        className="form-input"
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="form-label">Breed *</label>
+                      <input
+                        type="text"
+                        value={formData.breed}
+                        onChange={(e) => setFormData({...formData, breed: e.target.value})}
+                        required
+                        placeholder="e.g., Golden Retriever"
+                        className="form-input"
+                      />
+                    </div>
                   </div>
                   
-                  <div>
-                    <label htmlFor="breed" className="form-label">
-                      Breed *
-                    </label>
-                    <input
-                      type="text"
-                      id="breed"
-                      value={formData.breed}
-                      onChange={(e) => setFormData({...formData, breed: e.target.value})}
-                      required
-                      placeholder="e.g., Golden Retriever, Persian"
-                      className="form-input"
-                    />
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Name *</label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        required
+                        placeholder="Animal's name"
+                        className="form-input"
+                      />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="form-label">Microchip ID *</label>
+                      <input
+                        type="text"
+                        value={formData.microchipId}
+                        onChange={(e) => setFormData({...formData, microchipId: e.target.value})}
+                        required
+                        placeholder="ISO-compliant UID"
+                        className="form-input"
+                      />
+                    </div>
                   </div>
                   
-                  <div>
-                    <label htmlFor="name" className="form-label">
-                      Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      required
-                      placeholder="Animal's name"
-                      className="form-input"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="microchipId" className="form-label">
-                      Microchip ID *
-                    </label>
-                    <input
-                      type="text"
-                      id="microchipId"
-                      value={formData.microchipId}
-                      onChange={(e) => setFormData({...formData, microchipId: e.target.value})}
-                      required
-                      placeholder="ISO-compliant UID"
-                      className="form-input"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="sire" className="form-label">
-                        Sire ID
-                      </label>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Sire ID</label>
                       <select
-                        id="sire"
                         value={formData.sire}
                         onChange={(e) => setFormData({...formData, sire: e.target.value})}
                         className="form-input"
@@ -545,34 +613,29 @@ function App() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    
+                    <div className="form-group">
+                      <label className="form-label">Dam ID</label>
+                      <select
+                        value={formData.dam}
+                        onChange={(e) => setFormData({...formData, dam: e.target.value})}
+                        className="form-input"
+                      >
+                        <option value="">Select Dam</option>
+                        {animals.map(animal => (
+                          <option key={animal.id} value={animal.id}>
+                            {animal.name} ({animal.id})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   
-                  <div>
-                    <label htmlFor="dam" className="form-label">
-                      Dam ID
-                    </label>
-                    <select
-                      id="dam"
-                      value={formData.dam}
-                      onChange={(e) => setFormData({...formData, dam: e.target.value})}
-                      className="form-input"
-                    >
-                      <option value="">Select Dam</option>
-                      {animals.map(animal => (
-                        <option key={animal.id} value={animal.id}>
-                          {animal.name} ({animal.id})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="dnaHash" className="form-label">
-                      DNA Report Hash (optional)
-                    </label>
+                  <div className="form-group">
+                    <label className="form-label">DNA Report Hash (optional)</label>
                     <input
                       type="text"
-                      id="dnaHash"
                       value={formData.dnaHash}
                       onChange={(e) => setFormData({...formData, dnaHash: e.target.value})}
                       placeholder="IPFS CID or hash"
@@ -583,269 +646,111 @@ function App() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="form-submit"
+                    className="submit-btn"
                   >
-                    {loading ? 'Registering on Blockchain...' : 'Register on Blockchain'}
-                    <span>→</span>
+                    {loading ? (
+                      <>
+                        <div className="spinner"></div>
+                        Registering on Blockchain...
+                      </>
+                    ) : (
+                      <>
+                        <span>🔗</span>
+                        Register on Blockchain
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
 
-              {/* Animals List */}
-              <div className="animals-card">
-                <div className="animals-header">
-                  <div className="animals-icon">
-                    <span className="text-white text-lg">🐕</span>
+              {/* Animals Registry */}
+              <div className="registry-section">
+                <div className="section-header">
+                  <div className="section-icon green-bg">
+                    <span>🐕</span>
                   </div>
-                  <h3 className="animals-title">Verified Registry</h3>
+                  <div>
+                    <h3 className="section-title">Verified Registry</h3>
+                    <p className="section-subtitle">Blockchain-verified animal records</p>
+                  </div>
                 </div>
                 
-                {loading ? (
-                  <div className="loading-state">
-                    <div className="loading-spinner"></div>
-                    <p className="loading-text">Loading from blockchain...</p>
-                  </div>
-                ) : (
-                  <div className="animals-list">
-                    {animals.length === 0 ? (
-                      <div className="empty-state">
-                        <span className="empty-icon">🐾</span>
-                        <p className="empty-text">No animals registered yet.</p>
-                        <p className="empty-subtext">Register the first animal to see blockchain verification in action</p>
-                      </div>
-                    ) : (
-                      animals.map(animal => (
+                <div className="registry-content">
+                  {loading ? (
+                    <div className="loading-state">
+                      <div className="loading-spinner"></div>
+                      <p className="loading-text">Loading from blockchain...</p>
+                    </div>
+                  ) : animals.length === 0 ? (
+                    <div className="empty-state">
+                      <span className="empty-icon">🐾</span>
+                      <p className="empty-text">No animals registered yet</p>
+                      <p className="empty-subtext">Register the first animal to see blockchain verification in action</p>
+                    </div>
+                  ) : (
+                    <div className="animals-list">
+                      {animals.map(animal => (
                         <div 
                           key={animal.id} 
-                          className={`animal-card ${animal.isVerified ? 'animal-verified' : 'animal-unverified'}`}
+                          className={`animal-card ${animal.isVerified ? 'verified' : 'unverified'}`}
                         >
                           <div className="animal-header">
-                            <div className="animal-name-section">
+                            <div className="animal-info">
                               <h4 className="animal-name">{animal.name}</h4>
-                              {animal.isVerified && (
-                                <span className="verified-badge">
-                                  ✓ Blockchain Verified
-                                </span>
-                              )}
+                              <span className="animal-id">{animal.id}</span>
                             </div>
+                            {animal.isVerified && (
+                              <div className="verified-badge">
+                                <span className="badge-icon">✓</span>
+                                Verified
+                              </div>
+                            )}
                           </div>
                           
                           <div className="animal-details">
-                            <div><strong>ID:</strong> {animal.id}</div>
-                            <div><strong>Species:</strong> {animal.species}</div>
-                            <div><strong>Breed:</strong> {animal.breed}</div>
-                            <div><strong>Born:</strong> {formatDate(animal.birthDate)}</div>
+                            <div className="detail-item">
+                              <span className="detail-label">Species:</span>
+                              <span className="detail-value">{animal.species}</span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-label">Breed:</span>
+                              <span className="detail-value">{animal.breed}</span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-label">Born:</span>
+                              <span className="detail-value">{formatDate(animal.birthDate)}</span>
+                            </div>
                             {animal.sire && animal.sire.length > 0 && (
-                              <div><strong>Sire:</strong> {animal.sire[0]}</div>
+                              <div className="detail-item">
+                                <span className="detail-label">Sire:</span>
+                                <span className="detail-value">{animal.sire[0]}</span>
+                              </div>
                             )}
                             {animal.dam && animal.dam.length > 0 && (
-                              <div><strong>Dam:</strong> {animal.dam[0]}</div>
+                              <div className="detail-item">
+                                <span className="detail-label">Dam:</span>
+                                <span className="detail-value">{animal.dam[0]}</span>
+                              </div>
                             )}
                           </div>
                           
                           <div className="animal-actions">
                             {!animal.isVerified && (
                               <button
-                                onClick={() => verifyAnimal(ananimal.id)}
-                                className="verify-button"
+                                onClick={() => verifyAnimal(animal.id)}
+                                className="action-btn verify"
                               >
-                                Verify on Blockchain
+                                <span>✓</span>
+                                Verify
                               </button>
                             )}
                             <button
                               onClick={() => viewLineage(animal.id)}
-                              className="lineage-button"
+                              className="action-btn lineage"
                             >
-                              <span>👁️</span>
-                              View Lineage
+                              <span>🌳</span>
+                              Lineage
                             </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Wallet Section */}
-            <div className="wallet-section">
-              <div className="wallet-header">
-                <div className="wallet-title">My Wallet</div>
-                {isAuthenticated ? (
-                  <>
-                    <div className="wallet-address">
-                      <span>Principal:</span>
-                      <span className="wallet-principal">{principal}</span>
-                      <button onClick={() => navigator.clipboard.writeText(principal)} className="wallet-copy">Copy</button>
-                    </div>
-                    <button onClick={logout} className="wallet-disconnect">Disconnect</button>
-                  </>
-                ) : (
-                  <button onClick={login} className="wallet_connect">Connect Wallet</button>
-                )}
-              </div>
-              {isAuthenticated && (
-                <>
-                  <div className="wallet-actions">
-                    {!isRegistered && (
-                      <button onClick={registerAccount} disabled={registering} className="wallet-register">
-                        {registering ? 'Registering...' : 'Register Account'}
-                      </button>
-                    )}
-                    {isRegistered && (
-                      <button className="wallet-verify">Verify Registry Entry</button>
-                    )}
-                  </div>
-                  <form onSubmit={handleMintNFT} className="nft-mint-form">
-                    <input
-                      type="text"
-                      value={mintBreed}
-                      onChange={e => setMintBreed(e.target.value)}
-                      placeholder="Enter breed to mint NFT"
-                      className="nft-mint-input"
-                      required
-                    />
-                    <button type="submit" className="nft-mint-button" disabled={minting}>
-                      {minting ? 'Minting...' : 'Mint NFT'}
-                    </button>
-                  </form>
-                  <div className="nft-gallery">
-                    {myNFTs.length === 0 ? (
-                      <div className="nft-empty-state">
-                        <span className="nft-empty-icon">🔗</span>
-                        <p className="nft-empty-text">No breed NFTs yet.</p>
-                        <p className="nft-empty-subtext">Mint an NFT for your favorite breed!</p>
-                      </div>
-                    ) : (
-                      <div className="nft-grid">
-                        {myNFTs.map(nft => (
-                          <div key={nft.id} className="nft-card">
-                            <img src={nft.imageUrl} alt={nft.breed} className="nft-image" />
-                            <div className="nft-info">
-                              <div className="nft-breed">{nft.breed}</div>
-                              <div className="nft-id">NFT #{nft.id}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-              {!isAuthenticated && (
-                <div className="wallet-notice">Connect your Internet Identity wallet to view and mint NFTs.</div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Lineage Modal */}
-        {selectedAnimal && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h3 className="modal-title">
-                  Blockchain Lineage for {selectedAnimal}
-                </h3>
-                <button 
-                  onClick={() => setSelectedAnimal(null)}
-                  className="modal-close"
-                >
-                  <span>×</span>
-                </button>
-              </div>
-              
-              <div className="modal-body">
-                {lineage.length === 0 ? (
-                  <div className="modal-empty">
-                    <span className="modal-empty-icon">🌳</span>
-                    <p className="modal-empty-text">No lineage information available.</p>
-                    <p className="modal-empty-subtext">This animal has no recorded parents in the blockchain registry</p>
-                  </div>
-                ) : (
-                  <div className="lineage-list">
-                    {lineage.map((animal, index) => (
-                      <div 
-                        key={animal.id} 
-                        className={`lineage-item ${index === 0 ? 'lineage-current' : 'lineage-parent'}`}
-                      >
-                        <div className="lineage-item-header">
-                          <h4 className="lineage-item-name">{animal.name}</h4>
-                          {animal.isVerified && (
-                            <span className="lineage-verified-badge">
-                              ✓ Blockchain Verified
-                            </span>
-                          )}
-                          {index === 0 && (
-                            <span className="lineage-current-badge">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                        
-                        <div className="lineage-item-details">
-                          <div><strong>ID:</strong> {animal.id}</div>
-                          <div><strong>Breed:</strong> {animal.breed}</div>
-                          <div><strong>Born:</strong> {formatDate(animal.birthDate)}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Wallet Modal (MetaMask style) */}
-        {walletOpen && (
-          <div className="wallet-modal-overlay" onClick={() => setWalletOpen(false)}>
-            <div className="wallet-modal" onClick={e => e.stopPropagation()}>
-              <div className="wallet-modal-header">
-                <span className="wallet-modal-title">My Wallet</span>
-                <button className="wallet-modal-close" onClick={() => setWalletOpen(false)}>×</button>
-              </div>
-              <div className="wallet-modal-body">
-                <div className="wallet-balance-row">
-                  <span className="wallet-balance-label">Balance:</span>
-                  <span className="wallet-balance-amount">{balance} ANMT</span>
-                </div>
-                <div className="wallet-address-row">
-                  <span className="wallet-address-label">Address:</span>
-                  <span className="wallet-principal-short">{principal.slice(0,8)}...{principal.slice(-4)}</span>
-                  <button onClick={() => navigator.clipboard.writeText(principal)} className="wallet-chip-copy" title="Copy address">📋</button>
-                </div>
-                {/* Wallet actions: Mint NFT, etc. */}
-                <form onSubmit={handleMintNFT} className="nft-mint-form">
-                  <input
-                    type="text"
-                    value={mintBreed}
-                    onChange={e => setMintBreed(e.target.value)}
-                    placeholder="Enter breed to mint NFT"
-                    className="nft-mint-input"
-                    required
-                    disabled={minting}
-                  />
-                  <button type="submit" className="nft-mint-button" disabled={minting}>
-                    {minting ? 'Minting...' : 'Mint NFT'}
-                  </button>
-                </form>
-                <div className="nft-gallery">
-                  {myNFTs.length === 0 ? (
-                    <div className="nft-empty-state">
-                      <span className="nft-empty-icon">🔗</span>
-                      <p className="nft-empty-text">No breed NFTs yet.</p>
-                      <p className="nft-empty-subtext">Mint an NFT for your favorite breed!</p>
-                    </div>
-                  ) : (
-                    <div className="nft-grid">
-                      {myNFTs.map(nft => (
-                        <div key={nft.id} className="nft-card">
-                          <img src={nft.imageUrl} alt={nft.breed} className="nft-image" />
-                          <div className="nft-info">
-                            <div className="nft-breed">{nft.breed}</div>
-                            <div className="nft-id">NFT #{nft.id}</div>
                           </div>
                         </div>
                       ))}
@@ -856,23 +761,207 @@ function App() {
             </div>
           </div>
         )}
+      </main>
 
-        {/* Footer CTA */}
-        <div className="cta-section">
-          <h2 className="cta-title">Ready to Revolutionize Animal Breeding?</h2>
-          <p className="cta-subtitle">
-            Join the future of transparent, secure, and immutable pedigree verification
-          </p>
-          <div className="cta-buttons">
-            <button className="cta-button-primary">
-              Schedule Demo
-            </button>
-            <button className="cta-button-secondary">
-              View Pitch Deck
-            </button>
+      {/* Wallet Modal */}
+      {walletOpen && (
+        <div className="modal-overlay" onClick={() => setWalletOpen(false)}>
+          <div className="wallet-modal" onClick={e => e.stopPropagation()}>
+            <div className="wallet-header">
+              <div className="wallet-title">
+                <span className="wallet-title-icon">👤</span>
+                My Wallet
+              </div>
+              <button className="modal-close" onClick={() => setWalletOpen(false)}>
+                ×
+              </button>
+            </div>
+            
+            <div className="wallet-content">
+              <div className="wallet-info">
+                <div className="wallet-address">
+                  <span className="wallet-label">Address:</span>
+                  <div className="address-display">
+                    <span className="address-text">{formatPrincipal(principal)}</span>
+                    <button 
+                      onClick={() => navigator.clipboard.writeText(principal)} 
+                      className="copy-btn"
+                      title="Copy full address"
+                    >
+                      📋
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="wallet-balance">
+                  <span className="wallet-label">Balance:</span>
+                  <span className="balance-amount">{balance.toLocaleString()} ANMT</span>
+                </div>
+                
+                <div className="wallet-status">
+                  <span className="wallet-label">Status:</span>
+                  <span className={`status-badge ${isRegistered ? 'registered' : 'unregistered'}`}>
+                    {isRegistered ? '✓ Registered' : '⚠ Not Registered'}
+                  </span>
+                </div>
+              </div>
+
+              {!isRegistered && (
+                <div className="wallet-actions">
+                  <button 
+                    onClick={registerAccount} 
+                    disabled={registering} 
+                    className="wallet-action-btn register"
+                  >
+                    {registering ? (
+                      <>
+                        <div className="spinner small"></div>
+                        Registering...
+                      </>
+                    ) : (
+                      <>
+                        <span>📝</span>
+                        Register Account
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              <div className="nft-section">
+                <div className="nft-header">
+                  <h4 className="nft-title">Breed NFTs</h4>
+                  <span className="nft-count">{myNFTs.length}</span>
+                </div>
+                
+                <form onSubmit={handleMintNFT} className="nft-mint-form">
+                  <input
+                    type="text"
+                    value={mintBreed}
+                    onChange={e => setMintBreed(e.target.value)}
+                    placeholder="Enter breed name"
+                    className="nft-input"
+                    required
+                    disabled={minting}
+                  />
+                  <button type="submit" className="nft-mint-btn" disabled={minting}>
+                    {minting ? (
+                      <>
+                        <div className="spinner small"></div>
+                        Minting...
+                      </>
+                    ) : (
+                      <>
+                        <span>🎨</span>
+                        Mint NFT
+                      </>
+                    )}
+                  </button>
+                </form>
+                
+                <div className="nft-gallery">
+                  {myNFTs.length === 0 ? (
+                    <div className="nft-empty">
+                      <span className="nft-empty-icon">🎨</span>
+                      <p className="nft-empty-text">No NFTs yet</p>
+                      <p className="nft-empty-subtext">Mint your first breed NFT above</p>
+                    </div>
+                  ) : (
+                    <div className="nft-grid">
+                      {myNFTs.map(nft => (
+                        <div key={nft.id} className="nft-card">
+                          <img src={nft.imageUrl} alt={nft.breed} className="nft-image" />
+                          <div className="nft-info">
+                            <div className="nft-breed">{nft.breed}</div>
+                            <div className="nft-id">#{safeToNumber(nft.id)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="wallet-footer">
+                <button onClick={logout} className="logout-btn">
+                  <span>🚪</span>
+                  Disconnect Wallet
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Lineage Modal */}
+      {selectedAnimal && (
+        <div className="modal-overlay" onClick={() => setSelectedAnimal(null)}>
+          <div className="lineage-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <span className="modal-title-icon">🌳</span>
+                Blockchain Lineage for {selectedAnimal}
+              </h3>
+              <button 
+                onClick={() => setSelectedAnimal(null)}
+                className="modal-close"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-content">
+              {lineage.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">🌳</span>
+                  <p className="empty-text">No lineage information available</p>
+                  <p className="empty-subtext">This animal has no recorded parents in the blockchain registry</p>
+                </div>
+              ) : (
+                <div className="lineage-tree">
+                  {lineage.map((animal, index) => (
+                    <div 
+                      key={animal.id} 
+                      className={`lineage-item ${index === 0 ? 'current' : 'parent'}`}
+                    >
+                      <div className="lineage-header">
+                        <div className="lineage-info">
+                          <h4 className="lineage-name">{animal.name}</h4>
+                          <span className="lineage-id">{animal.id}</span>
+                        </div>
+                        <div className="lineage-badges">
+                          {animal.isVerified && (
+                            <span className="lineage-badge verified">
+                              <span className="badge-icon">✓</span>
+                              Verified
+                            </span>
+                          )}
+                          {index === 0 && (
+                            <span className="lineage-badge current">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="lineage-details">
+                        <div className="lineage-detail">
+                          <span className="detail-label">Breed:</span>
+                          <span className="detail-value">{animal.breed}</span>
+                        </div>
+                        <div className="lineage-detail">
+                          <span className="detail-label">Born:</span>
+                          <span className="detail-value">{formatDate(animal.birthDate)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
