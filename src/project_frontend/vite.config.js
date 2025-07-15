@@ -10,6 +10,9 @@ export default defineConfig({
   build: {
     emptyOutDir: true,
   },
+  define: {
+    'process': { 'env': {} }
+  },
   optimizeDeps: {
     esbuildOptions: {
       define: {
